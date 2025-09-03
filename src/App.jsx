@@ -1,77 +1,92 @@
-import { useState, useEffect } from 'react'
-import './assets/css/App.css'
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import './assets/css/App.css';
 import Header from './components/shared/Header';
 import ListadoImagenes from './components/ListadoImagenes';
 import Footer from './components/shared/Footer';
+import Loading from './components/shared/Loading';
+import EmptyState from './components/shared/EmptyState';
+import usePixabayAPI from './hooks/usePixabayAPI';
 
 function App() {
-  const [ busqueda, guardarBusqueda ] = useState('');
-  const [ imagenes, guardarImagenes] = useState([]);
-  const [ paginaactual, guardarPaginaActual ] = useState(1);
-  const [ totalpaginas, guardarTotalPaginas] = useState(5);
+  const [query, setQuery] = useState('Cat');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const { images, loading, error, totalPages, totalHits, searchImages } = usePixabayAPI();
 
   useEffect(() => {
-    const consultarApi = async () => {
-        if(busqueda === '' ) return;
+    searchImages(query, currentPage);
+  }, [searchImages, query, currentPage]);
 
-        const imagenesPorPagina = 30;
-        const key = '20470204-c53f8a8ee90591b468254d283';
-        const url = `https://pixabay.com/api/?key=${key}&q=${busqueda}&per_page=${imagenesPorPagina}&page=${paginaactual}`;
-    
-        const respuesta = await fetch(url);
-        const resultado = await respuesta.json();
+  const handleSearch = useCallback(newQuery => {
+    setQuery(newQuery);
+    setCurrentPage(1);
+    // No llamamos searchImages aquí porque useEffect lo manejará automáticamente
+  }, []);
 
-        guardarImagenes(resultado.hits);
+  const handlePageChange = useCallback(newPage => {
+    setCurrentPage(newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // No llamamos searchImages aquí porque useEffect lo manejará automáticamente
+  }, []);
 
-        // calcular el total de paginas
-        const calcularTotalPaginas = Math.ceil(resultado.totalHits / imagenesPorPagina );
-        guardarTotalPaginas(calcularTotalPaginas);
-    }
-    consultarApi();
-  }, [busqueda, paginaactual])
-
-  // definir la página anterior
-  const paginaAnterior = () => {
-    const nuevaPaginaActual = paginaactual - 1;
-
-    // Evitar numeros negativos en la paginacion
-    if(nuevaPaginaActual === 0 ) return;
-
-    guardarPaginaActual(nuevaPaginaActual);
-  }
-
-  // definir la pagina siguiente
-  const paginaSiguiente = () => {
-    const nuevaPaginaActual = paginaactual + 1;
-
-    // Evitar superar el numero total de paginas e ir mas alla
-    if(nuevaPaginaActual > totalpaginas ) return;
-
-    guardarPaginaActual(nuevaPaginaActual);
-  }
+  const showPagination = useMemo(
+    () => !loading && images.length > 0 && totalPages > 1,
+    [loading, images.length, totalPages]
+  );
 
   return (
-    <div>
-      <Header guardarBusqueda={guardarBusqueda} />
-      <main>
-        {imagenes.length > 0 &&
-          <>
-            <ListadoImagenes imagenes={imagenes} />
-            <div className='pageButtons'>
-              {paginaactual === 1 ? null : (
-                <button type="button" className='button' onClick={paginaAnterior} >&laquo; Anterior </button>
-              )}
+    <div className="app">
+      <Header onSearch={handleSearch} />
 
-              {paginaactual === totalpaginas ? null : (
-                <button type="button" className='button' onClick={paginaSiguiente} >Siguiente &raquo;</button>
-              )}
+      <main className="main-content">
+        {loading && <Loading />}
+
+        {error && (
+          <div className="error-container">
+            <p className="error-message">❌ {error}</p>
+          </div>
+        )}
+
+        {!loading && !error && images.length === 0 && query && <EmptyState query={query} />}
+
+        {!loading && !error && images.length > 0 && (
+          <>
+            <div className="results-info">
+              <p>
+                Se encontraron {totalHits.toLocaleString()} imágenes para "{query}"
+              </p>
             </div>
+
+            <ListadoImagenes imagenes={images} />
+
+            {showPagination && (
+              <div className="pagination">
+                <button
+                  className="button"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}>
+                  ← Anterior
+                </button>
+
+                <span className="page-info">
+                  Página {currentPage} de {totalPages}
+                </span>
+
+                <button
+                  className="button"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}>
+                  Siguiente →
+                </button>
+              </div>
+            )}
           </>
-        }
-      </main>     
+        )}
+      </main>
+
       <Footer />
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
