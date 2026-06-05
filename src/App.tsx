@@ -6,27 +6,27 @@ import Footer from './components/shared/Footer';
 import Loading from './components/shared/Loading';
 import EmptyState from './components/shared/EmptyState';
 import usePixabayAPI from './hooks/usePixabayAPI';
+import useDebounce from './hooks/useDebounce';
 
 function App() {
   const [query, setQuery] = useState('Cat');
   const [currentPage, setCurrentPage] = useState(1);
+  const debouncedQuery = useDebounce(query, 400);
 
   const { images, loading, error, totalPages, totalHits, searchImages } = usePixabayAPI();
 
   useEffect(() => {
-    searchImages(query, currentPage);
-  }, [searchImages, query, currentPage]);
+    searchImages(debouncedQuery, currentPage);
+  }, [searchImages, debouncedQuery, currentPage]);
 
-  const handleSearch = useCallback(newQuery => {
+  const handleSearch = useCallback((newQuery: string) => {
     setQuery(newQuery);
     setCurrentPage(1);
-    // No llamamos searchImages aquí porque useEffect lo manejará automáticamente
   }, []);
 
-  const handlePageChange = useCallback(newPage => {
+  const handlePageChange = useCallback((newPage: number) => {
     setCurrentPage(newPage);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    // No llamamos searchImages aquí porque useEffect lo manejará automáticamente
   }, []);
 
   const showPagination = useMemo(
@@ -47,13 +47,16 @@ function App() {
           </div>
         )}
 
-        {!loading && !error && images.length === 0 && query && <EmptyState query={query} />}
+        {!loading && !error && images.length === 0 && debouncedQuery && (
+          <EmptyState query={debouncedQuery} />
+        )}
 
         {!loading && !error && images.length > 0 && (
           <>
             <div className="results-info">
               <p>
-                Se encontraron {totalHits.toLocaleString()} imágenes para "{query}"
+                Se encontraron {totalHits.toLocaleString()} imágenes para &quot;{debouncedQuery}
+                &quot;
               </p>
             </div>
 
